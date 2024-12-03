@@ -1,4 +1,5 @@
 import os
+import json
 
 
 def parse_tskv_file(file_path: str):
@@ -41,10 +42,27 @@ def parse_tskv_file(file_path: str):
     return reviews
 
 
-# Пример использования
-data_file_path = "../data/geo-reviews-dataset-2023.tskv"
-parsed_reviews = parse_tskv_file(data_file_path)
+def save_to_json(data, output_path):
+    """
+    Сохраняет данные в формате JSON.
+    :param data: Данные для сохранения.
+    :param output_path: Путь для сохранения JSON-файла.
+    """
+    with open(output_path, 'w', encoding='utf-8') as json_file:
+        json.dump(data, json_file, ensure_ascii=False, indent=4)
 
-# Выводим первые 5 записей
-for i, review in enumerate(parsed_reviews[:5]):
-    print(f"Отзыв {i + 1}: {review}")
+
+# Основной блок
+if __name__ == "__main__":
+    data_file_path = "../data/geo-reviews-dataset-2023.tskv"
+    output_file_path = "../data/geo_reviews_raw.json"
+
+    try:
+        # Парсим файл
+        parsed_reviews = parse_tskv_file(data_file_path)
+
+        # Сохраняем результат в JSON
+        save_to_json(parsed_reviews, output_file_path)
+        print(f"Данные успешно обработаны и сохранены в {output_file_path}")
+    except Exception as e:
+        print(f"Ошибка: {e}")
