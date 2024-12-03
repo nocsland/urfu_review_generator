@@ -8,43 +8,42 @@ def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
     """
     Очищает текстовые поля записи отзыва.
     :param review: Словарь с данными отзыва.
-    :return: Очищенный словарь.
+    :return: Очищенный словарь или None, если данные некорректны.
     """
+    # Проверка на обязательные столбцы
+    if not review.get("text") or not review.get("name_ru") or review.get("rating") is None:
+        return None  # Возвращаем None, если ключевые столбцы пустые или отсутствуют
+
     cleaned_review = {}
 
     # Очистка текстового поля `text`
-    if "text" in review:
-        text = review["text"]
-        text = text.lower()  # Приводим к нижнему регистру
-        text = re.sub(r"<[^>]+>", "", text)  # Удаляем HTML-теги
-        text = re.sub(r"[^\w\s,.!?]", "", text)  # Удаляем спецсимволы, кроме пунктуации
-        text = re.sub(r"\s+", " ", text).strip()  # Убираем лишние пробелы
-        cleaned_review["text"] = text
+    text = review["text"]
+    text = text.lower()  # Приводим к нижнему регистру
+    text = re.sub(r"<[^>]+>", "", text)  # Удаляем HTML-теги
+    text = re.sub(r"[^\w\s,.!?()]+", "", text)  # Удаляем спецсимволы, кроме пунктуации и скобок
+    text = re.sub(r"\)\)+", " ", text)  # Заменяем смайлики вида "))" на пробел
+    text = re.sub(r"\s+", " ", text).strip()  # Убираем лишние пробелы
+    text = re.sub(r"[\n\r]+", " ", text)  # Заменяем переносы строк на пробелы
+    cleaned_review["text"] = text
 
     # Очистка поля `rubrics`
-    if "rubrics" in review:
-        rubrics = review["rubrics"]
-        rubrics = rubrics.lower().strip()
-        cleaned_review["rubrics"] = rubrics
+    rubrics = review.get("rubrics", "").lower().strip()
+    cleaned_review["rubrics"] = rubrics
 
     # Очистка поля `name_ru`
-    if "name_ru" in review:
-        name = review["name_ru"]
-        name = name.strip()
-        cleaned_review["name_ru"] = name
+    name = review.get("name_ru", "").strip()
+    cleaned_review["name_ru"] = name
 
     # Минимальная очистка адреса
-    if "address" in review:
-        address = review["address"]
-        address = re.sub(r"\s+", " ", address).strip()
-        cleaned_review["address"] = address
+    address = review.get("address", "").strip()
+    address = re.sub(r"\s+", " ", address)
+    cleaned_review["address"] = address
 
     # Преобразование оценки в float
-    if "rating" in review:
-        try:
-            cleaned_review["rating"] = float(review["rating"])
-        except ValueError:
-            cleaned_review["rating"] = None  # Обрабатываем некорректные значения
+    try:
+        cleaned_review["rating"] = float(review["rating"])
+    except (ValueError, TypeError):
+        cleaned_review["rating"] = None  # Обрабатываем некорректные значения
 
     return cleaned_review
 
@@ -61,7 +60,9 @@ def clean_dataset(input_path: str, output_path: str):
     with open(input_path, "r", encoding="utf-8") as infile:
         raw_data = json.load(infile)
 
+    # Фильтруем данные, удаляя записи с пустыми обязательными полями
     cleaned_data = [clean_review_data(review) for review in raw_data]
+    cleaned_data = [review for review in cleaned_data if review is not None]  # Убираем None
 
     with open(output_path, "w", encoding="utf-8") as outfile:
         json.dump(cleaned_data, outfile, ensure_ascii=False, indent=4)
