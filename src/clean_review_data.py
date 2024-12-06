@@ -97,7 +97,6 @@ def clean_dataset(input_path: str, output_path: str):
     logging.info(f"Удалено записей с некорректным рейтингом: {invalid_rating_count}")
     logging.info(f"Сохранено уникальных записей: {after_deduplication}")
 
-
     # Сохранение очищенных данных
     with open(output_path, "w", encoding="utf-8") as outfile:
         json.dump(list(unique_reviews), outfile, ensure_ascii=False, indent=4)
