@@ -50,16 +50,15 @@ def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
     address = re.sub(r"\s+", " ", address)  # Убираем лишние пробелы
     cleaned_review["address"] = address
 
-    # Преобразование и нормализация рейтинга
+    # Преобразование рейтинга (без нормализации)
     try:
         rating = float(review["rating"])
         if rating < 1 or rating > 5:  # Если рейтинг вне диапазона, возвращаем None
             global invalid_rating_count
             invalid_rating_count += 1  # Увеличиваем счетчик некорректных рейтингов
             return None  # Удаляем записи с рейтингом, выходящим за пределы диапазона
-        # Нормализация рейтинга в диапазон от 0 до 1
-        normalized_rating = (rating - 1) / 4
-        cleaned_review["rating"] = normalized_rating  # Здесь можно либо оставить как есть, либо нормализовать
+        # Оставляем рейтинг без изменений
+        cleaned_review["rating"] = rating
     except (ValueError, TypeError) as e:
         logging.warning(f"Ошибка при обработке рейтинга: {review['rating']} - {e}")
         return None  # Удаляем записи с некорректным значением рейтинга
