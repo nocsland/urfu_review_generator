@@ -1,7 +1,10 @@
 import json
+import logging
 import os
 import re
 from typing import Dict
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
@@ -14,6 +17,10 @@ def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
     if not review.get("text") or not review.get("name_ru") or review.get("rating") is None:
         return None  # Возвращаем None, если ключевые столбцы пустые или отсутствуют
 
+    # Дополнительные проверки данных
+    if len(review["text"].strip()) < 10:  # Например, если текст отзыва слишком короткий
+        return None
+
     cleaned_review = {}
 
     # Очистка текстового поля `text`
@@ -22,8 +29,8 @@ def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
     text = re.sub(r"<[^>]+>", "", text)  # Удаляем HTML-теги
     text = re.sub(r"[^\w\s,.!?()]+", "", text)  # Удаляем спецсимволы, кроме пунктуации и скобок
     text = re.sub(r"\)\)+", " ", text)  # Заменяем смайлики вида "))" на пробел
-    text = re.sub(r"\s+", " ", text).strip()  # Убираем лишние пробелы
     text = re.sub(r"[\n\r]+", " ", text)  # Заменяем переносы строк на пробелы
+    text = re.sub(r"\s+", " ", text).strip()  # Убираем лишние пробелы
     cleaned_review["text"] = text
 
     # Очистка поля `rubrics`
@@ -34,16 +41,20 @@ def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
     name = review.get("name_ru", "").strip()
     cleaned_review["name_ru"] = name
 
-    # Минимальная очистка адреса
+    # Минимальная очистка адреса (замена слешей на пробелы, если рядом нет чисел)
     address = review.get("address", "").strip()
-    address = re.sub(r"\s+", " ", address)
+    address = re.sub(r"(?<!\d)/|(?!\d)/", " ", address)  # Заменяем слеши на пробелы, если рядом нет чисел
+    address = re.sub(r"\s+", " ", address)  # Убираем лишние пробелы
     cleaned_review["address"] = address
 
-    # Преобразование оценки в float
+    # Преобразование и нормализация рейтинга
     try:
-        cleaned_review["rating"] = float(review["rating"])
+        rating = float(review["rating"])
+        # Если нормализация необходима (например, рейтинг в диапазоне от 1 до 5), можно использовать:
+        normalized_rating = (rating - 1) / 4  # Нормализуем в диапазон от 0 до 1
+        cleaned_review["rating"] = normalized_rating  # Здесь можно либо оставить как есть, либо нормализовать
     except (ValueError, TypeError):
-        cleaned_review["rating"] = None  # Обрабатываем некорректные значения
+        return None  # Удаляем записи с некорректным значением рейтинга
 
     return cleaned_review
 
@@ -61,13 +72,25 @@ def clean_dataset(input_path: str, output_path: str):
         raw_data = json.load(infile)
 
     # Фильтруем данные, удаляя записи с пустыми обязательными полями
+    total_reviews = len(raw_data)
     cleaned_data = [clean_review_data(review) for review in raw_data]
     cleaned_data = [review for review in cleaned_data if review is not None]  # Убираем None
 
-    with open(output_path, "w", encoding="utf-8") as outfile:
-        json.dump(cleaned_data, outfile, ensure_ascii=False, indent=4)
+    # Подсчёт дубликатов
+    before_deduplication = len(cleaned_data)
+    unique_reviews = {review["text"]: review for review in cleaned_data}.values()
+    after_deduplication = len(unique_reviews)
 
-    print(f"Очищенные данные сохранены в {output_path}")
+    # Логи
+    logging.info(f"Очищенные данные сохранены в {output_path}")
+    logging.info(f"Обработано записей: {total_reviews}")
+    logging.info(f"Удалено записей с пустыми обязательными полями: {total_reviews - before_deduplication}")
+    logging.info(f"Удалено дубликатов: {before_deduplication - after_deduplication}")
+    logging.info(f"Сохранено уникальных записей: {after_deduplication}")
+
+    # Сохранение очищенных данных
+    with open(output_path, "w", encoding="utf-8") as outfile:
+        json.dump(list(unique_reviews), outfile, ensure_ascii=False, indent=4)
 
 
 # Основной блок
@@ -78,4 +101,4 @@ if __name__ == "__main__":
     try:
         clean_dataset(input_file, output_file)
     except Exception as e:
-        print(f"Ошибка: {e}")
+        logging.error(f"Ошибка: {e}")
