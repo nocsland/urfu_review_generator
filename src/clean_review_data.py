@@ -6,6 +6,9 @@ from typing import Dict
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Глобальная переменная для подсчета некорректных рейтингов
+invalid_rating_count = 0
+
 
 def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
     """
@@ -50,10 +53,15 @@ def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
     # Преобразование и нормализация рейтинга
     try:
         rating = float(review["rating"])
-        # Если нормализация необходима (например, рейтинг в диапазоне от 1 до 5), можно использовать:
-        normalized_rating = (rating - 1) / 4  # Нормализуем в диапазон от 0 до 1
+        if rating < 1 or rating > 5:  # Если рейтинг вне диапазона, возвращаем None
+            global invalid_rating_count
+            invalid_rating_count += 1  # Увеличиваем счетчик некорректных рейтингов
+            return None  # Удаляем записи с рейтингом, выходящим за пределы диапазона
+        # Нормализация рейтинга в диапазон от 0 до 1
+        normalized_rating = (rating - 1) / 4
         cleaned_review["rating"] = normalized_rating  # Здесь можно либо оставить как есть, либо нормализовать
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as e:
+        logging.warning(f"Ошибка при обработке рейтинга: {review['rating']} - {e}")
         return None  # Удаляем записи с некорректным значением рейтинга
 
     return cleaned_review
@@ -86,7 +94,9 @@ def clean_dataset(input_path: str, output_path: str):
     logging.info(f"Обработано записей: {total_reviews}")
     logging.info(f"Удалено записей с пустыми обязательными полями: {total_reviews - before_deduplication}")
     logging.info(f"Удалено дубликатов: {before_deduplication - after_deduplication}")
+    logging.info(f"Удалено записей с некорректным рейтингом: {invalid_rating_count}")
     logging.info(f"Сохранено уникальных записей: {after_deduplication}")
+
 
     # Сохранение очищенных данных
     with open(output_path, "w", encoding="utf-8") as outfile:
