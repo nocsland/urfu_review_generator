@@ -33,6 +33,7 @@ def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
     text = re.sub(r"[^\w\s,.!?()]+", "", text)  # Удаляем спецсимволы, кроме пунктуации и скобок
     text = re.sub(r"\)\)+", " ", text)  # Заменяем смайлики вида "))" на пробел
     text = re.sub(r"[\n\r]+", " ", text)  # Заменяем переносы строк на пробелы
+    text = re.sub(r"n", " ", text)  # Заменяем 'n' на пробел
     text = re.sub(r"\s+", " ", text).strip()  # Убираем лишние пробелы
     cleaned_review["text"] = text
 
