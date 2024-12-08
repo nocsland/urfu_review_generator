@@ -1,3 +1,7 @@
 pandas
-transformers
+numpy
+transformers[torch]
 torch
+scikit-learn
+jsonschema
+python-telegram-bot
