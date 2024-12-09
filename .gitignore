@@ -162,6 +162,5 @@ cython_debug/
 .idea/
 data/
 /backup/
-/.dvc/cache/
-/.dvc/tmp/
 /gdrive/
+/data
