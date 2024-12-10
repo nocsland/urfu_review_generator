@@ -6,7 +6,7 @@ from typing import Dict
 
 # Настройка логгирования
 log_dir = 'logs'
-log_file = 'clean_review.log'
+log_file = 'review_cleaner.log'
 os.makedirs(log_dir, exist_ok=True)
 log_path = os.path.join(log_dir, log_file)
 logging.basicConfig(
@@ -124,8 +124,8 @@ def clean_dataset(input_path: str, output_path: str):
 
 # Основной блок
 if __name__ == "__main__":
-    input_file = "data/geo_reviews_raw.json"
-    output_file = "data/geo_reviews_cleaned.json"
+    input_file = "data/dataset/geo_reviews_raw.json"
+    output_file = "data/dataset/geo_reviews_cleaned.json"
 
     try:
         clean_dataset(input_file, output_file)

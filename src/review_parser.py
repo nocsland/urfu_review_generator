@@ -73,8 +73,8 @@ def save_to_json(data, output_path):
 
 
 if __name__ == "__main__":
-    data_file_path = "data/geo-reviews-dataset-2023.tskv"
-    output_file_path = "data/geo_reviews_raw.json"
+    data_file_path = "data/dataset/geo-reviews-dataset-2023.tskv"
+    output_file_path = "data/dataset/geo_reviews_raw.json"
 
     try:
         parsed_reviews = parse_tskv_file(data_file_path)
