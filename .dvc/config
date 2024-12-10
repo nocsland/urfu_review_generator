@@ -1,0 +1,6 @@
+[core]
+    remote = review_generator
+['remote "review_generator"']
+    url = gdrive://1ypdFtaNbYDgOBiCDpzgghnM-fsvKrRep
+    gdrive_use_service_account = true
+    gdrive_service_account_json_file_path = ../gdrive/service_account.json
