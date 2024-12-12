@@ -8,26 +8,21 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
-# Настройка логирования: создание директории и файла для логов
-log_dir = 'logs'
-log_file = 'review_writer_bot.log'
-os.makedirs(log_dir, exist_ok=True)
-log_path = os.path.join(log_dir, log_file)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename=log_path
-)
+from config.settings import MODEL_PATH, CACHE_PATH
+from utils.logger import setup_logger
 
 # Загрузка переменных окружения из .env
 load_dotenv()
+
+# Инициализация логера
+logger = setup_logger(log_file='review_writer_bot.log')
 
 # Получение значений
 api_key = os.getenv("BOT_KEY")
 
 # Пути для модели и кэша
-model_path = 'data/model/'
-cache_path = 'data/model/model_cache'
+model_path = MODEL_PATH
+cache_path = CACHE_PATH
 
 # Загрузка модели и токенизатора
 model_name = 'fine_tuned_geo_reviews_model'
