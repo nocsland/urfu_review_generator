@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 
@@ -7,6 +8,17 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
+# Настройка логирования: создание директории и файла для логов
+log_dir = 'logs'
+log_file = 'review_writer_bot.log'
+os.makedirs(log_dir, exist_ok=True)
+log_path = os.path.join(log_dir, log_file)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename=log_path
+)
+
 # Загрузка переменных окружения из .env
 load_dotenv()
 
@@ -14,8 +26,8 @@ load_dotenv()
 api_key = os.getenv("BOT_KEY")
 
 # Пути для модели и кэша
-model_path = '/home/vaa/backup/Учеба/УрФУ/3 семестр/Хакатон/Учебная задача/saved_model/v3/'
-cache_path = '/home/vaa/backup/Учеба/УрФУ/3 семестр/Хакатон/Учебная задача/saved_model/v3/model_cache/'
+model_path = 'data/model/'
+cache_path = 'data/model/model_cache'
 
 # Загрузка модели и токенизатора
 model_name = 'fine_tuned_geo_reviews_model'
@@ -109,8 +121,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        '''Здравствуйте! После нажатия кнопки 'Начать' вам будет предложено ввести данные об объекте,
-                после обработки я сгенерирую отзыв, учитывая предоставленную информацию.''',
+        '''Здравствуйте! После нажатия кнопки 'Начать' вам будет предложено ввести данные об объекте, после 
+        обработки я сгенерирую отзыв, учитывая предоставленную информацию.''',
         reply_markup=reply_markup
     )
 
@@ -130,6 +142,9 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         text = update.message.text
+        logging.info(f"Получено сообщение от {update.message.from_user.id}: {text}")
+
+        # Обработка сообщения и генерация ответа
         parts = text.split("|")
         if len(parts) < 3:
             await update.message.reply_text(
@@ -162,7 +177,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filtered_text = clean_text(filtered_text)
 
         await update.message.reply_text(filtered_text)
+        logging.info(f"Отправлен сгенерированный текст пользователю {update.message.from_user.id}: {filtered_text}")
+
     except Exception as e:
+        logging.error(f"Произошла ошибка при обработке сообщения: {str(e)}")
         await update.message.reply_text(f"Произошла ошибка: {str(e)}")
 
 
