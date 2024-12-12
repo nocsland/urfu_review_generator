@@ -116,8 +116,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(
-        '''Здравствуйте! После нажатия кнопки 'Начать' вам будет предложено ввести данные об объекте, после 
-        обработки я сгенерирую отзыв, учитывая предоставленную информацию.''',
+        "Нажмите 'Начать' и введите данные об объекте. Я сгенерирую отзыв.",
         reply_markup=reply_markup
     )
 
