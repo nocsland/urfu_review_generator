@@ -173,9 +173,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(filtered_text)
         logging.info(f"Отправлен сгенерированный текст пользователю {update.message.from_user.id}: {filtered_text}")
 
-    except Exception as e:
-        logging.error(f"Произошла ошибка при обработке сообщения: {str(e)}")
-        await update.message.reply_text(f"Произошла ошибка: {str(e)}")
+    except Exception:
+        logging.exception(f"Произошла ошибка при обработке сообщения")
+        await update.message.reply_text(f"Произошла ошибка при обработке сообщения")
 
 
 # Основной код запуска бота
