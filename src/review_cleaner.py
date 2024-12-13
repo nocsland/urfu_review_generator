@@ -4,16 +4,11 @@ import os
 import re
 from typing import Dict
 
-# Настройка логгирования
-log_dir = 'logs'
-log_file = 'review_cleaner.log'
-os.makedirs(log_dir, exist_ok=True)
-log_path = os.path.join(log_dir, log_file)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename=log_path
-)
+from config.settings import RAW_DATA_PATH, CLEANED_DATA_PATH
+from utils.logger import setup_logger
+
+# Настройка логирования
+logger = setup_logger('review_cleaner.log')
 
 # Глобальная переменная для подсчета записей с некорректными рейтингами
 invalid_rating_count = 0
@@ -134,8 +129,8 @@ def clean_dataset(input_path: str, output_path: str):
 
 # Основной блок программы
 if __name__ == "__main__":
-    input_file = "data/dataset/geo_reviews_raw.json"
-    output_file = "data/dataset/geo_reviews_cleaned.json"
+    input_file = RAW_DATA_PATH
+    output_file = CLEANED_DATA_PATH
 
     try:
         clean_dataset(input_file, output_file)
