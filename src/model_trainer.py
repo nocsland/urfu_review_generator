@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
+from config.settings import MODEL_NAME, CACHE_PATH, DATASETS_PATH, CLEANED_DATA_PATH, MODEL_PATH, OUTPUT_MODEL_NAME
 from transformers import (
     GPT2LMHeadModel,
     GPT2Tokenizer,
@@ -18,16 +19,10 @@ from transformers import (
     EarlyStoppingCallback,
 )
 
-# Настройка логирования: создание директории и файла для логов
-log_dir = 'logs'
-log_file = 'model_trainer.log'
-os.makedirs(log_dir, exist_ok=True)
-log_path = os.path.join(log_dir, log_file)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename=log_path
-)
+from utils.logger import setup_logger
+
+# Настройка логирования
+logger = setup_logger(log_file='model_trainer.log')
 
 # Отключение всех предупреждений для упрощения вывода
 warnings.filterwarnings("ignore")
@@ -60,8 +55,8 @@ class TrainingCallback(TrainerCallback):
 
 # Основной класс для обучения модели
 class FineTuner:
-    def __init__(self, model_name='ai-forever/rugpt3small_based_on_gpt2', cache_dir='data/model/model_cache',
-                 model_path='data/model', data_path='data/dataset'):
+    def __init__(self, model_name=MODEL_NAME, cache_dir=CACHE_PATH,
+                 model_path=MODEL_PATH, data_path=DATASETS_PATH):
         self.model_path = Path(model_path)  # Директория для сохранения модели
         self.data_path = Path(data_path)  # Директория для хранения данных
 
@@ -76,8 +71,7 @@ class FineTuner:
     def prepare_data(self, df):
         """Подготовка данных для обучения: создание входного и выходного текста."""
         df['input'] = df.apply(
-            lambda
-                row: f"<name_ru> {row['name_ru']} <rubrics> {row['rubrics']} <rating> {row['rating']} <address> {row['address']} {self.tokenizer.eos_token}",
+            lambda row: f"<name_ru> {row['name_ru']} <rubrics> {row['rubrics']} <rating> {row['rating']} <address> {row['address']} {self.tokenizer.eos_token}",
             axis=1
         )
         df['output'] = df.apply(lambda row: f"<text> {row['text']} {self.tokenizer.eos_token}", axis=1)
@@ -112,7 +106,7 @@ class FineTuner:
         logging.info(
             f"Dataset split: {len(train_lines)} train lines, {len(val_lines)} validation lines, {len(test_lines)} test lines.")
 
-    def fine_tune(self, dataset_path, output_name='fine_tuned_geo_reviews_model', num_train_epochs=5,
+    def fine_tune(self, dataset_path, output_name=OUTPUT_MODEL_NAME, num_train_epochs=5,
                   per_device_train_batch_size=16, learning_rate=5e-5, save_steps=10_000):
         """Процесс тонкой настройки модели на данных."""
         logging.info("Starting fine-tuning process.")
@@ -195,13 +189,11 @@ class FineTuner:
 
 if __name__ == "__main__":
     # Основные пути и файл очищенных данных
-    DATA_PATH = 'data/dataset'
-    MODEL_PATH = 'data/model'
-    CLEANED_DATA_FILE = 'geo_reviews_cleaned.json'
+    DATA_PATH = DATASETS_PATH
 
     # Инициализация FineTuner
     fine_tuner = FineTuner(model_path=MODEL_PATH)
-    cleaned_data_path = Path(DATA_PATH) / CLEANED_DATA_FILE
+    cleaned_data_path = CLEANED_DATA_PATH
 
     # Загрузка и подготовка данных
     df = pd.read_json(cleaned_data_path)
@@ -210,7 +202,7 @@ if __name__ == "__main__":
     # Запуск обучения модели
     fine_tuner.fine_tune(
         dataset_path=dataset_path,
-        output_name="fine_tuned_geo_reviews_model",
+        output_name=OUTPUT_MODEL_NAME,
         num_train_epochs=10,
         per_device_train_batch_size=16,
         learning_rate=5e-5
