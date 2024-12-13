@@ -13,3 +13,4 @@ setuptools
 nltk
 typing-extensions
 tqdm
+wordcloud
