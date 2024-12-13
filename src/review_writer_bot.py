@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import re
@@ -136,7 +137,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         text = update.message.text
-        logging.info(f"Получено сообщение от {update.message.from_user.id}: {text}")
+
+        # Хэшируем ID пользователя
+        user_id_hashed = hashlib.sha256(str(update.message.from_user.id).encode()).hexdigest()[:8]
+
+        logging.info(f"Получено сообщение от {user_id_hashed}: {text}")
 
         # Обработка сообщения и генерация ответа
         parts = text.split("|")
@@ -171,7 +176,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         filtered_text = clean_text(filtered_text)
 
         await update.message.reply_text(filtered_text)
-        logging.info(f"Отправлен сгенерированный текст пользователю {update.message.from_user.id}: {filtered_text}")
+        logging.info(f"Отправлен сгенерированный текст пользователю {user_id_hashed}: {filtered_text}")
+
 
     except Exception:
         logging.exception(f"Произошла ошибка при обработке сообщения")
