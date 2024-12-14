@@ -19,6 +19,7 @@ from transformers import (
     EarlyStoppingCallback,
 )
 
+from clearml import Task
 from utils.logger import setup_logger
 
 # Настройка логирования
@@ -27,6 +28,8 @@ logger = setup_logger(log_file='model_trainer.log')
 # Отключение всех предупреждений для упрощения вывода
 warnings.filterwarnings("ignore")
 
+# Интеграция с ClearML
+task = Task.init(project_name="review_generator", task_name="Fine-tuning model")
 
 # Функция для вычисления перплексии модели
 def compute_perplexity(logits, labels):
@@ -47,7 +50,7 @@ class TrainingCallback(TrainerCallback):
                 eval_loss = logs["eval_loss"]
                 perplexity = np.exp(eval_loss)
                 logs["eval_perplexity"] = perplexity
-                logging.info(f"Perplexity: {perplexity}")
+                task.get_logger().report_scalar("Evaluation", "Perplexity", iteration=state.global_step, value=perplexity)
 
             # Логирование всех метрик, доступных в logs
             logging.info(f"Logs: {logs}")
@@ -165,7 +168,7 @@ class FineTuner:
             data_collator=data_collator,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            callbacks=[TrainingCallback, EarlyStoppingCallback(early_stopping_patience=3)]
+            callbacks=[TrainingCallback(), EarlyStoppingCallback(early_stopping_patience=3)]
         )
 
         logging.info("Training started.")
@@ -180,7 +183,8 @@ class FineTuner:
         )
         test_results = trainer.evaluate(test_dataset)
         logging.info(f"Test Results: {test_results}")
-
+        task.get_logger().report_scalar("Test Metrics", "Eval Loss", iteration=0, value=test_results["eval_loss"])
+        task.get_logger().report_scalar("Test Metrics", "Perplexity", iteration=0, value=np.exp(test_results["eval_loss"]))
         # Сохранение обученной модели
         logging.info("Saving the fine-tuned model...")
         self.model.save_pretrained(str(self.model_path / output_name))
