@@ -46,6 +46,7 @@ if [[ -n "$VIRTUAL_ENV" && "$PYTHONPATH" != "$PROJECT_DIR" ]]; then
   echo ">>> PYTHONPATH настроен для текущей сессии"
 else
   echo ">>> PYTHONPATH уже настроен: $PYTHONPATH"
+  echo ">>> Пожалуйста, активируйте виртуальное окружение вручную с помощью команды: source venv/bin/activate"
 fi
 
 # Уведомление о необходимости активировать окружение вручную, если оно не было активировано в начале
