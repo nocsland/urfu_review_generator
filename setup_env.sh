@@ -6,27 +6,38 @@ set -e
 # Переход в директорию скрипта
 cd "$(dirname "$0")"
 
+# Настройка переменных
+PROJECT_DIR=$(pwd)
+ACTIVATE_FILE="venv/bin/activate"
+
+# Создание виртуального окружения, если его нет
+[[ -d "venv" ]] || {
+  echo ">>> Виртуальное окружение не найдено. Создаём новое..."
+  python3 -m venv venv
+}
+
 # Проверка, активировано ли виртуальное окружение
-if [[ "$VIRTUAL_ENV" != "" ]]; then
-  echo ">>> Виртуальное окружение уже активировано: $VIRTUAL_ENV"
-else
-  # Создаём виртуальное окружение, если его нет
-  if [[ ! -d "venv" ]]; then
-    echo ">>> Виртуальное окружение не найдено. Создаём новое..."
-    python3 -m venv venv
-  fi
+if [[ -z "$VIRTUAL_ENV" ]]; then
+  # Активация виртуального окружения
+  source "$ACTIVATE_FILE"
+  echo ">>> Виртуальное окружение активировано."
 fi
 
-# Настройка PYTHONPATH
-PROJECT_DIR=$(pwd)
-export PYTHONPATH=$PROJECT_DIR
-echo ">>> PYTHONPATH настроен: $PROJECT_DIR"
+# Добавление PYTHONPATH в activate, если строки нет
+if ! grep -Fxq "export PYTHONPATH=$PROJECT_DIR" "$ACTIVATE_FILE"; then
+  echo "export PYTHONPATH=$PROJECT_DIR" >> "$ACTIVATE_FILE"
+  echo ">>> PYTHONPATH добавлен в $ACTIVATE_FILE"
+fi
 
-# Активация окружения
-echo ">>> Активация виртуального окружения..."
-source venv/bin/activate
+# Настройка PYTHONPATH для текущей сессии, если окружение активировано
+if [[ -n "$VIRTUAL_ENV" && "$PYTHONPATH" != "$PROJECT_DIR" ]]; then
+  export PYTHONPATH=$PROJECT_DIR
+  echo ">>> PYTHONPATH настроен для текущей сессии"
+else
+  echo ">>> PYTHONPATH уже настроен: $PYTHONPATH"
+fi
 
-# Установка зависимостей, если файл requirements.txt существует
+# Установка зависимостей, если есть requirements.txt
 if [[ -f requirements.txt ]]; then
   echo ">>> Установка зависимостей..."
   pip install --upgrade pip
