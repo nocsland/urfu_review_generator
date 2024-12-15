@@ -3,33 +3,38 @@
 # Выход при ошибке
 set -e
 
+# Переход в директорию скрипта
+cd "$(dirname "$0")"
+
 # Проверка, активировано ли виртуальное окружение
 if [[ "$VIRTUAL_ENV" != "" ]]; then
-  echo ">>> Виртуальное окружение уже активировано. Ожидаемое окружение: $VIRTUAL_ENV"
-
-  # Экспортируем PYTHONPATH в текущую сессию оболочки
-  PROJECT_DIR=$(pwd)
-  export PYTHONPATH=$PROJECT_DIR
-  echo "export PYTHONPATH=$PROJECT_DIR" >> venv/bin/activate
-  echo ">>> PYTHONPATH настроен: $PROJECT_DIR"
-
+  echo ">>> Виртуальное окружение уже активировано: $VIRTUAL_ENV"
 else
-  echo ">>> Виртуальное окружение не активировано. Создаём окружение..."
+  # Создаём виртуальное окружение, если его нет
+  if [[ ! -d "venv" ]]; then
+    echo ">>> Виртуальное окружение не найдено. Создаём новое..."
+    python3 -m venv venv
+  fi
+fi
 
-  # Создание виртуального окружения
-  python3 -m venv venv
+# Настройка PYTHONPATH
+PROJECT_DIR=$(pwd)
+export PYTHONPATH=$PROJECT_DIR
+echo ">>> PYTHONPATH настроен: $PROJECT_DIR"
 
-  echo ">>> Активация виртуального окружения..."
-  source venv/bin/activate
+# Активация окружения
+echo ">>> Активация виртуального окружения..."
+source venv/bin/activate
 
+# Установка зависимостей, если файл requirements.txt существует
+if [[ -f requirements.txt ]]; then
   echo ">>> Установка зависимостей..."
   pip install --upgrade pip
   pip install -r requirements.txt
-
-  echo ">>> Настройка PYTHONPATH..."
-  PROJECT_DIR=$(pwd)
-  echo "export PYTHONPATH=$PROJECT_DIR" >> venv/bin/activate
-  echo ">>> PYTHONPATH настроен: $PROJECT_DIR"
+else
+  echo ">>> Файл requirements.txt не найден. Пропускаем установку зависимостей."
 fi
 
-echo ">>> Всё готово! Если виртуальное окружение не было активировано, активируйте его с помощью: source venv/bin/activate"
+echo "========================================"
+echo ">>> Всё готово! Виртуальное окружение активировано."
+echo "========================================"
