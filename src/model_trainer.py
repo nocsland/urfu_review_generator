@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+from clearml import Task
 from sklearn.model_selection import train_test_split
-from config.settings import MODEL_NAME, CACHE_PATH, DATASETS_PATH, CLEANED_DATA_PATH, MODEL_PATH, OUTPUT_MODEL_NAME
 from transformers import (
     GPT2LMHeadModel,
     GPT2Tokenizer,
@@ -19,6 +19,7 @@ from transformers import (
     EarlyStoppingCallback,
 )
 
+from config.settings import MODEL_NAME, CACHE_PATH, DATASETS_PATH, CLEANED_DATA_PATH, MODEL_PATH, OUTPUT_MODEL_NAME
 from utils.logger import setup_logger
 
 # Настройка логирования
@@ -26,6 +27,9 @@ logger = setup_logger(log_file='model_trainer.log')
 
 # Отключение всех предупреждений для упрощения вывода
 warnings.filterwarnings("ignore")
+
+# Интеграция с ClearML
+task = Task.init(project_name="review_generator", task_name="Fine-tuning model")
 
 
 # Функция для вычисления перплексии модели
@@ -45,9 +49,12 @@ class TrainingCallback(TrainerCallback):
             # Логирование перплексии на основе eval_loss
             if "eval_loss" in logs:
                 eval_loss = logs["eval_loss"]
+                task.get_logger().report_scalar("Evaluation", "eval_loss", iteration=state.global_step,
+                                                value=eval_loss)
                 perplexity = np.exp(eval_loss)
                 logs["eval_perplexity"] = perplexity
-                logging.info(f"Perplexity: {perplexity}")
+                task.get_logger().report_scalar("Evaluation", "Perplexity", iteration=state.global_step,
+                                                value=perplexity)
 
             # Логирование всех метрик, доступных в logs
             logging.info(f"Logs: {logs}")
@@ -71,7 +78,8 @@ class FineTuner:
     def prepare_data(self, df):
         """Подготовка данных для обучения: создание входного и выходного текста."""
         df['input'] = df.apply(
-            lambda row: f"<name_ru> {row['name_ru']} <rubrics> {row['rubrics']} <rating> {row['rating']} <address> {row['address']} {self.tokenizer.eos_token}",
+            lambda
+                row: f"<name_ru> {row['name_ru']} <rubrics> {row['rubrics']} <rating> {row['rating']} <address> {row['address']} {self.tokenizer.eos_token}",
             axis=1
         )
         df['output'] = df.apply(lambda row: f"<text> {row['text']} {self.tokenizer.eos_token}", axis=1)
@@ -165,7 +173,7 @@ class FineTuner:
             data_collator=data_collator,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            callbacks=[TrainingCallback, EarlyStoppingCallback(early_stopping_patience=3)]
+            callbacks=[TrainingCallback(), EarlyStoppingCallback(early_stopping_patience=3)]
         )
 
         logging.info("Training started.")
@@ -180,7 +188,10 @@ class FineTuner:
         )
         test_results = trainer.evaluate(test_dataset)
         logging.info(f"Test Results: {test_results}")
-
+        task.get_logger().report_scalar("Test Metrics", "Eval Loss", iteration=0,
+                                        value=test_results["eval_loss"])
+        task.get_logger().report_scalar("Test Metrics", "Perplexity", iteration=0,
+                                        value=np.exp(test_results["eval_loss"]))
         # Сохранение обученной модели
         logging.info("Saving the fine-tuned model...")
         self.model.save_pretrained(str(self.model_path / output_name))
