@@ -53,6 +53,8 @@ class TrainingCallback(TrainerCallback):
                 logs["eval_perplexity"] = perplexity
                 task.get_logger().report_scalar("Evaluation", "Perplexity", iteration=state.global_step,
                                                 value=perplexity)
+
+            # Логирование всех метрик, доступных в logs
             logging.info(f"Logs: {logs}")
 
 
@@ -61,6 +63,8 @@ class FineTuner:
     def __init__(self, model_name=MODEL_NAME, cache_dir=CACHE_PATH, model_path=MODEL_PATH, data_path=DATASETS_PATH):
         self.model_path = Path(model_path)
         self.data_path = Path(data_path)
+
+        # Создание директории для кэша
         self.cache_dir = Path(cache_dir)
         os.makedirs(self.cache_dir, exist_ok=True)
 
@@ -77,6 +81,7 @@ class FineTuner:
         df['output'] = df.apply(lambda row: f"<text> {row['text']} {self.tokenizer.eos_token}", axis=1)
 
         dataset_path = self.data_path / 'full_dataset.txt'
+        # Сохранение объединенных текстов в файл
         with dataset_path.open('w', encoding='utf-8') as file:
             for input_text, target_text in zip(df['input'], df['output']):
                 file.write(input_text + ' ' + target_text + '\n')
@@ -99,13 +104,16 @@ class FineTuner:
         return normalized_weights
 
     def split_dataset(self, input_file, train_file, val_file, test_file, train_size=0.8, val_size=0.1, test_size=0.1):
+        """Разделение данных на тренировочную, валидационную и тестовую выборки."""
         with open(input_file, 'r', encoding='utf-8') as f:
             lines = f.readlines()
 
+        # Разделение на тренировочный набор и временный набор для валидации и теста
         train_lines, temp_lines = train_test_split(lines, train_size=train_size, random_state=42)
         val_lines, test_lines = train_test_split(temp_lines, train_size=val_size / (val_size + test_size),
                                                  random_state=42)
 
+        # Сохранение выборок в отдельные файлы
         with open(train_file, 'w', encoding='utf-8') as f:
             f.writelines(train_lines)
         with open(val_file, 'w', encoding='utf-8') as f:
@@ -119,14 +127,17 @@ class FineTuner:
 
     def fine_tune(self, dataset_path, df, output_name=OUTPUT_MODEL_NAME, num_train_epochs=5,
                   per_device_train_batch_size=16, learning_rate=5e-5, save_steps=10_000):
+        """Процесс дообучения модели на кастомных данных."""
         logging.info("Starting fine-tuning process.")
         full_dataset_path = dataset_path
         train_dataset_path = self.data_path / 'train_dataset.txt'
         val_dataset_path = self.data_path / 'val_dataset.txt'
         test_dataset_path = self.data_path / 'test_dataset.txt'
 
+        # Разделение датасета на части
         self.split_dataset(full_dataset_path, train_dataset_path, val_dataset_path, test_dataset_path)
 
+        # Подготовка датасетов
         train_dataset = TextDataset(tokenizer=self.tokenizer, file_path=str(full_dataset_path), block_size=256)
         eval_dataset = TextDataset(tokenizer=self.tokenizer, file_path=str(val_dataset_path), block_size=256)
 
@@ -159,12 +170,14 @@ class FineTuner:
             weight_decay=0.01,
         )
 
+        # Настройка Trainer
         trainer = Trainer(
             model=self.model,
             args=training_args,
             data_collator=data_collator,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
+            train_sampler=sampler,
             callbacks=[TrainingCallback(), EarlyStoppingCallback(early_stopping_patience=3)],
         )
 
@@ -187,12 +200,15 @@ class FineTuner:
 if __name__ == "__main__":
     DATA_PATH = DATASETS_PATH
 
+    # Инициализация FineTuner
     fine_tuner = FineTuner(model_path=MODEL_PATH)
     cleaned_data_path = CLEANED_DATA_PATH
 
+    # Загрузка и подготовка данных
     df = pd.read_json(cleaned_data_path)
     dataset_path = fine_tuner.prepare_data(df)
 
+    # Запуск обучения модели
     fine_tuner.fine_tune(
         dataset_path=dataset_path,
         df=df,
