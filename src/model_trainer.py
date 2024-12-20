@@ -177,7 +177,7 @@ class FineTuner:
             data_collator=data_collator,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            train_sampler=sampler,
+            # train_sampler=sampler,
             callbacks=[TrainingCallback(), EarlyStoppingCallback(early_stopping_patience=3)],
         )
 
