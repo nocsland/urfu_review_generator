@@ -4,19 +4,57 @@ import os
 import re
 from typing import Dict
 
-# Настройка логгирования
-log_dir = 'logs'
-log_file = 'review_cleaner.log'
-os.makedirs(log_dir, exist_ok=True)
-log_path = os.path.join(log_dir, log_file)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename=log_path
-)
+from config.settings import RAW_DATA_PATH, CLEANED_DATA_PATH
+from utils.logger import setup_logger
+
+# Настройка логирования
+logger = setup_logger('review_cleaner.log')
 
 # Глобальная переменная для подсчета записей с некорректными рейтингами
 invalid_rating_count = 0
+
+
+def normalize_text(text: str) -> str:
+    """
+    Нормализует текст: удаляет лишние пробелы и знаки препинания, не примыкающие к слову.
+    :param text: Исходный текст.
+    :return: Нормализованный текст.
+    """
+    # Сначала удаляем лишние пробелы
+    text = re.sub(r"\s+", " ", text).strip()
+
+    # Удаляем пробелы перед знаками пунктуации
+    text = re.sub(r"\s([?.!,¿])", r"\1", text)
+    # Убираем лишние пробелы после знаков пунктуации
+    text = re.sub(r"([?.!,¿])\s*", r"\1 ", text)
+
+    # Удаляем пробелы между одинаковыми знаками пунктуации
+    text = re.sub(r"([?.!,¿])\s*\1+", r"\1", text)
+
+    # Разделяем текст на слова и восстанавливаем пробелы между ними
+    words = text.split()
+
+    # Удаляем знаки препинания, если они не являются частью слова
+    normalized_words = [
+        re.sub(r"[^\w\s,.!?()]+", "", word) for word in words
+    ]
+
+    # Собираем текст обратно из нормализованных слов
+    normalized_text = " ".join(normalized_words)
+
+    # Удаляем группы знаков пунктуации в конце текста
+    normalized_text = re.sub(r"[?.!,¿]+\s*$", "", normalized_text)
+
+    # Удаляем все подряд идущие знаки пунктуации в середине текста
+    normalized_text = re.sub(r"([?.!,¿])\1+", r"\1", normalized_text)
+
+    # Удаляем пробелы между знаками пунктуации и словами, если они есть
+    normalized_text = re.sub(r"\s([?.!,¿])", r"\1", normalized_text)
+
+    # Убираем пробел перед закрывающей скобкой
+    normalized_text = re.sub(r"\s\)", r")", normalized_text)
+
+    return normalized_text
 
 
 def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
@@ -54,8 +92,8 @@ def clean_review_data(review: Dict[str, str]) -> Dict[str, str]:
         text = re.sub(r"[\n\r]+", " ", text)
         # Удаление одиночных символов 'n', которые могут оставаться после других преобразований
         text = re.sub(r"n", " ", text)
-        # Удаление лишних пробелов
-        text = re.sub(r"\s+", " ", text).strip()
+        # Применение нормализации текста
+        text = normalize_text(text)
         cleaned_review["text"] = text
 
         # Очистка рубрик (rubrics)
@@ -134,8 +172,8 @@ def clean_dataset(input_path: str, output_path: str):
 
 # Основной блок программы
 if __name__ == "__main__":
-    input_file = "data/dataset/geo_reviews_raw.json"
-    output_file = "data/dataset/geo_reviews_cleaned.json"
+    input_file = RAW_DATA_PATH
+    output_file = CLEANED_DATA_PATH
 
     try:
         clean_dataset(input_file, output_file)

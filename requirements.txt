@@ -7,3 +7,5 @@ jsonschema
 python-telegram-bot
 dvc-gdrive
 dvc
+python-dotenv
+clearml

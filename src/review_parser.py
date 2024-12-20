@@ -1,18 +1,11 @@
 import json
 import logging
 import os
+from utils.logger import setup_logger
+from config.settings import SOURCE_DATA_PATH, RAW_DATA_PATH
 
 # Настройка логирования: папка и файл для логов
-log_dir = 'logs'
-log_file = 'review_parser.log'
-# Создание директории для логов, если её нет
-os.makedirs(log_dir, exist_ok=True)
-log_path = os.path.join(log_dir, log_file)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename=log_path
-)
+logger = setup_logger(log_file='review_parser.log')
 
 
 def parse_tskv_file(file_path: str):
@@ -83,8 +76,8 @@ def save_to_json(data, output_path):
 
 if __name__ == "__main__":
     # Путь к исходному TSKV-файлу и выходному JSON-файлу
-    data_file_path = "data/dataset/geo-reviews-dataset-2023.tskv"
-    output_file_path = "data/dataset/geo_reviews_raw.json"
+    data_file_path = SOURCE_DATA_PATH
+    output_file_path = RAW_DATA_PATH
 
     try:
         # Парсинг TSKV-файла и сохранение данных в формате JSON

@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+from clearml import Task
 from sklearn.model_selection import train_test_split
 from transformers import (
     GPT2LMHeadModel,
@@ -18,28 +19,26 @@ from transformers import (
     EarlyStoppingCallback,
 )
 
-# Настройка логирования: создание директории и файла для логов
-log_dir = 'logs'
-log_file = 'model_trainer.log'
-os.makedirs(log_dir, exist_ok=True)
-log_path = os.path.join(log_dir, log_file)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename=log_path
-)
+from config.settings import MODEL_NAME, CACHE_PATH, DATASETS_PATH, CLEANED_DATA_PATH, MODEL_PATH, OUTPUT_MODEL_NAME
+from utils.logger import setup_logger
+
+# Настройка логирования
+logger = setup_logger(log_file='model_trainer.log')
 
 # Отключение всех предупреждений для упрощения вывода
 warnings.filterwarnings("ignore")
 
+# Интеграция с ClearML
+task = Task.init(project_name="review_generator", task_name="Fine-tuning model")
+
 
 # Функция для вычисления перплексии модели
 def compute_perplexity(logits, labels):
-    # Вычисление логарифмов вероятностей и функции потерь (кросс-энтропия)
     log_probs = torch.nn.functional.log_softmax(logits, dim=-1)
-    cross_entropy = torch.nn.functional.cross_entropy(log_probs.view(-1, log_probs.size(-1)), labels.view(-1),
-                                                      reduction='none')
-    perplexity = torch.exp(cross_entropy.mean())  # Вычисление перплексии
+    cross_entropy = torch.nn.functional.cross_entropy(
+        log_probs.view(-1, log_probs.size(-1)), labels.view(-1), reduction='none'
+    )
+    perplexity = torch.exp(cross_entropy.mean())
     return perplexity
 
 
@@ -47,12 +46,13 @@ def compute_perplexity(logits, labels):
 class TrainingCallback(TrainerCallback):
     def on_log(self, args, state, control, logs=None, **kwargs):
         if logs:
-            # Логирование перплексии на основе eval_loss
             if "eval_loss" in logs:
                 eval_loss = logs["eval_loss"]
+                task.get_logger().report_scalar("Evaluation", "eval_loss", iteration=state.global_step, value=eval_loss)
                 perplexity = np.exp(eval_loss)
                 logs["eval_perplexity"] = perplexity
-                logging.info(f"Perplexity: {perplexity}")
+                task.get_logger().report_scalar("Evaluation", "Perplexity", iteration=state.global_step,
+                                                value=perplexity)
 
             # Логирование всех метрик, доступных в logs
             logging.info(f"Logs: {logs}")
@@ -60,25 +60,23 @@ class TrainingCallback(TrainerCallback):
 
 # Основной класс для обучения модели
 class FineTuner:
-    def __init__(self, model_name='ai-forever/rugpt3small_based_on_gpt2', cache_dir='data/model/model_cache',
-                 model_path='data/model', data_path='data/dataset'):
-        self.model_path = Path(model_path)  # Директория для сохранения модели
-        self.data_path = Path(data_path)  # Директория для хранения данных
+    def __init__(self, model_name=MODEL_NAME, cache_dir=CACHE_PATH, model_path=MODEL_PATH, data_path=DATASETS_PATH):
+        self.model_path = Path(model_path)
+        self.data_path = Path(data_path)
 
         # Создание директории для кэша
         self.cache_dir = Path(cache_dir)
         os.makedirs(self.cache_dir, exist_ok=True)
 
-        # Загрузка предобученной модели и токенизатора
         self.tokenizer = GPT2Tokenizer.from_pretrained(model_name, cache_dir=str(self.cache_dir))
         self.model = GPT2LMHeadModel.from_pretrained(model_name, cache_dir=str(self.cache_dir))
 
     def prepare_data(self, df):
-        """Подготовка данных для обучения: создание входного и выходного текста."""
+        """Подготовка данных для обучения."""
         df['input'] = df.apply(
             lambda
                 row: f"<name_ru> {row['name_ru']} <rubrics> {row['rubrics']} <rating> {row['rating']} <address> {row['address']} {self.tokenizer.eos_token}",
-            axis=1
+            axis=1,
         )
         df['output'] = df.apply(lambda row: f"<text> {row['text']} {self.tokenizer.eos_token}", axis=1)
 
@@ -90,6 +88,20 @@ class FineTuner:
 
         logging.info(f"Data prepared and saved at {dataset_path}")
         return dataset_path
+
+    def compute_class_weights(self, df):
+        """Вычисление весов классов с увеличением влияния редких классов."""
+        rating_counts = df['rating'].value_counts()
+
+        # Рассчитываем веса как обратное количество отзывов
+        weights = {rating: 1 / count for rating, count in rating_counts.items()}
+
+        # Нормализуем веса так, чтобы их сумма равнялась 1
+        weight_sum = sum(weights.values())
+        normalized_weights = {rating: weight / weight_sum for rating, weight in weights.items()}
+
+        logging.info(f"Normalized class weights: {normalized_weights}")
+        return normalized_weights
 
     def split_dataset(self, input_file, train_file, val_file, test_file, train_size=0.8, val_size=0.1, test_size=0.1):
         """Разделение данных на тренировочную, валидационную и тестовую выборки."""
@@ -110,11 +122,12 @@ class FineTuner:
             f.writelines(test_lines)
 
         logging.info(
-            f"Dataset split: {len(train_lines)} train lines, {len(val_lines)} validation lines, {len(test_lines)} test lines.")
+            f"Dataset split: {len(train_lines)} train lines, {len(val_lines)} validation lines, {len(test_lines)} test lines."
+        )
 
-    def fine_tune(self, dataset_path, output_name='fine_tuned_geo_reviews_model', num_train_epochs=5,
+    def fine_tune(self, dataset_path, df, output_name=OUTPUT_MODEL_NAME, num_train_epochs=5,
                   per_device_train_batch_size=16, learning_rate=5e-5, save_steps=10_000):
-        """Процесс тонкой настройки модели на данных."""
+        """Процесс дообучения модели на кастомных данных."""
         logging.info("Starting fine-tuning process.")
         full_dataset_path = dataset_path
         train_dataset_path = self.data_path / 'train_dataset.txt'
@@ -125,23 +138,16 @@ class FineTuner:
         self.split_dataset(full_dataset_path, train_dataset_path, val_dataset_path, test_dataset_path)
 
         # Подготовка датасетов
-        train_dataset = TextDataset(
-            tokenizer=self.tokenizer,
-            file_path=str(full_dataset_path),
-            block_size=256
-        )
-        eval_dataset = TextDataset(
-            tokenizer=self.tokenizer,
-            file_path=str(val_dataset_path),
-            block_size=256
-        )
+        train_dataset = TextDataset(tokenizer=self.tokenizer, file_path=str(full_dataset_path), block_size=256)
+        eval_dataset = TextDataset(tokenizer=self.tokenizer, file_path=str(val_dataset_path), block_size=256)
 
-        # Настройка data collator для языкового моделирования
-        data_collator = DataCollatorForLanguageModeling(
-            tokenizer=self.tokenizer, mlm=False
-        )
+        data_collator = DataCollatorForLanguageModeling(tokenizer=self.tokenizer, mlm=False)
 
-        # Параметры обучения
+        # Вычисление и применение нормализованных весов
+        class_weights = self.compute_class_weights(df)
+        sample_weights = torch.tensor([class_weights[int(row['rating'])] for _, row in df.iterrows()])
+        sampler = torch.utils.data.WeightedRandomSampler(sample_weights, len(sample_weights))
+
         training_args = TrainingArguments(
             output_dir=str(self.model_path / output_name),
             overwrite_output_dir=True,
@@ -153,8 +159,8 @@ class FineTuner:
             logging_dir=str(self.model_path / 'logs'),
             logging_steps=1000,
             eval_steps=1000,
-            eval_strategy='steps',
-            save_strategy='steps',
+            eval_strategy='epoch',
+            save_strategy='epoch',
             load_best_model_at_end=True,
             no_cuda=not torch.cuda.is_available(),
             fp16=True,
@@ -171,37 +177,32 @@ class FineTuner:
             data_collator=data_collator,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            callbacks=[TrainingCallback, EarlyStoppingCallback(early_stopping_patience=3)]
+            # train_sampler=sampler,
+            callbacks=[TrainingCallback(), EarlyStoppingCallback(early_stopping_patience=3)],
         )
 
         logging.info("Training started.")
         trainer.train()
 
-        # Оценка модели на тестовых данных
         logging.info("Evaluating the model on the test dataset...")
-        test_dataset = TextDataset(
-            tokenizer=self.tokenizer,
-            file_path=str(test_dataset_path),
-            block_size=256
-        )
+        test_dataset = TextDataset(tokenizer=self.tokenizer, file_path=str(test_dataset_path), block_size=256)
         test_results = trainer.evaluate(test_dataset)
         logging.info(f"Test Results: {test_results}")
+        task.get_logger().report_scalar("Test Metrics", "Eval Loss", iteration=0, value=test_results["eval_loss"])
+        task.get_logger().report_scalar("Test Metrics", "Perplexity", iteration=0,
+                                        value=np.exp(test_results["eval_loss"]))
 
-        # Сохранение обученной модели
         logging.info("Saving the fine-tuned model...")
         self.model.save_pretrained(str(self.model_path / output_name))
         self.tokenizer.save_pretrained(str(self.model_path / output_name))
 
 
 if __name__ == "__main__":
-    # Основные пути и файл очищенных данных
-    DATA_PATH = 'data/dataset'
-    MODEL_PATH = 'data/model'
-    CLEANED_DATA_FILE = 'geo_reviews_cleaned.json'
+    DATA_PATH = DATASETS_PATH
 
     # Инициализация FineTuner
     fine_tuner = FineTuner(model_path=MODEL_PATH)
-    cleaned_data_path = Path(DATA_PATH) / CLEANED_DATA_FILE
+    cleaned_data_path = CLEANED_DATA_PATH
 
     # Загрузка и подготовка данных
     df = pd.read_json(cleaned_data_path)
@@ -210,8 +211,9 @@ if __name__ == "__main__":
     # Запуск обучения модели
     fine_tuner.fine_tune(
         dataset_path=dataset_path,
-        output_name="fine_tuned_geo_reviews_model",
-        num_train_epochs=10,
+        df=df,
+        output_name=OUTPUT_MODEL_NAME,
+        num_train_epochs=15,
         per_device_train_batch_size=16,
-        learning_rate=5e-5
+        learning_rate=5e-5,
     )
