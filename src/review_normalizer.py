@@ -7,18 +7,13 @@ from typing import Dict
 import nltk
 import pymorphy2
 from nltk.corpus import stopwords
-from tqdm import tqdm  # Импортируем tqdm для прогресс-бара
+from tqdm import tqdm
+
+from config.settings import CLEANED_DATA_PATH, NORMALIZED_DATA_PATH
+from utils.logger import setup_logger
 
 # Настройка логирования
-log_dir = 'logs'
-log_file = 'review_normalizer.log'
-os.makedirs(log_dir, exist_ok=True)
-log_path = os.path.join(log_dir, log_file)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename=log_path
-)
+logger = setup_logger(log_file='review_normalizer.log')
 
 # Загрузка необходимых ресурсов NLTK (если не установлены, нужно выполнить: nltk.download('stopwords'))
 nltk.download('stopwords')
@@ -94,8 +89,8 @@ def normalize_dataset(input_path: str, output_path: str):
 
 # Основной блок программы для нормализации
 if __name__ == "__main__":
-    input_file = "data/dataset/geo_reviews_cleaned.json"
-    output_file = "data/dataset/geo_reviews_normalized.json"
+    input_file = CLEANED_DATA_PATH
+    output_file = NORMALIZED_DATA_PATH
 
     try:
         normalize_dataset(input_file, output_file)

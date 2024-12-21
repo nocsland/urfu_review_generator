@@ -6,4 +6,6 @@ CLEANED_DATA_PATH = "data/dataset/geo_reviews_cleaned.json"  # путь к да�
 MODEL_NAME = 'ai-forever/rugpt3small_based_on_gpt2'  # используемая модель
 DATASETS_PATH = 'data/dataset'  # путь к каталогу датасетов
 CLEANED_DATA_FILE = 'geo_reviews_cleaned.json'  # имя файла очищенных данных
-OUTPUT_MODEL_NAME = "fine_tuned_geo_reviews_model" # имя модели после обучения
+OUTPUT_MODEL_NAME = 'fine_tuned_geo_reviews_model'  # имя модели после обучения
+BALANCED_DATA_PATH = 'data/dataset/geo_reviews_balanced.json'  # путь к сбалансированным данным
+NORMALIZED_DATA_PATH = 'data/dataset/geo_reviews_normalized.json'

@@ -1,8 +1,9 @@
 import json
 import logging
 import os
-from utils.logger import setup_logger
+
 from config.settings import SOURCE_DATA_PATH, RAW_DATA_PATH
+from utils.logger import setup_logger
 
 # Настройка логирования: папка и файл для логов
 logger = setup_logger(log_file='review_parser.log')

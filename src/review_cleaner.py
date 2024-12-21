@@ -8,7 +8,7 @@ from config.settings import RAW_DATA_PATH, CLEANED_DATA_PATH
 from utils.logger import setup_logger
 
 # Настройка логирования
-logger = setup_logger('review_cleaner.log')
+logger = setup_logger(log_file='review_cleaner.log')
 
 # Глобальная переменная для подсчета записей с некорректными рейтингами
 invalid_rating_count = 0
